@@ -1,11 +1,14 @@
 package com.epam.jgit;
 
+import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.treewalk.TreeWalk;
 
 import java.io.File;
 import java.io.IOException;
@@ -17,7 +20,7 @@ import java.util.*;
  */
 public class Main {
 
-    public static String sha = "e329c40fd7ece58cf09ea3cf02b95f9fc5d8e79b";
+    public static String sha = "79f127f678702483174368cdb61c58485bec6a0a";
     public static int depth = 4000;
 
     public static void main(String[] args) throws IOException, GitAPIException{
@@ -36,32 +39,54 @@ public class Main {
 
             try (RevWalk walk = new RevWalk(repository)) {
 
-                Set<ObjectId> parentList = new HashSet<>();
-                parentList.add(commit);
                 Set<ObjectId> childList = new HashSet<>();
+                childList.add(commit);
+                Set<ObjectId> parentList = new HashSet<>();
 
                 for (int i = depth; i > 0 ; i--) {
-                    for (ObjectId id : parentList) {
+                    for (ObjectId id : childList) {
                         RevCommit revCommit = walk.parseCommit(id);
                         String[] childs = links.put(id.toObjectId().getName(), Arrays.stream(revCommit.getParents())
                                 .map(RevCommit::toObjectId)
                                 .map(ObjectId::getName)
                                 .toArray(String[]::new));
                         if (null == childs) {
-                            childList.addAll(Arrays.asList(revCommit.getParents()));
+                            parentList.addAll(Arrays.asList(revCommit.getParents()));
                         }
                     }
 
-                    parentList = new HashSet<>(childList);
-                    childList.clear();
+                    childList = new HashSet<>(parentList);
+                    parentList.clear();
 
-                    if (0 == parentList.size()) {
+                    if (0 == childList.size()) {
                         System.out.println("Depth : " + (depth - i));
                         break;
                     }
                 }
 
+                try (TreeWalk treeWalk = new TreeWalk(repository);
+                     Git git = new Git(repository))
+                {
+                    treeWalk.addTree(walk.parseCommit(commit).getTree());
+                    treeWalk.setRecursive(true);
+                    int i = 0;
 
+                    while (treeWalk.next()) {
+                        if (FileMode.REGULAR_FILE.equals(treeWalk.getFileMode()) ||
+                                FileMode.EXECUTABLE_FILE.equals(treeWalk.getFileMode())) {
+                            System.out.println(treeWalk.getFileMode() + " " + treeWalk.getPathString());
+                            i++;
+                            Iterable<RevCommit> commits = git.log().addPath(treeWalk.getPathString()).call();
+                            for (RevCommit rcommit : commits) {
+                                System.out.println(rcommit.toObjectId().getName());
+                            }
+
+
+
+                        }
+                    }
+                    System.out.println("Total number of files : " + i);
+                }
 
 
             }
