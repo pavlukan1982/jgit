@@ -24,15 +24,15 @@ import java.util.*;
  */
 public class Main {
 
-    public static String sha = "34c0975f9c9d725079e3c222360b240b1889ae4f";
-    public static int depth = 2;
+    public static String sha = "d01f041886906f2d214711d76d7f8f0dde5ecaeb";
+    public static int depth = 1000;
 
     public static void main(String[] args) throws IOException, GitAPIException{
 
         long start = ZonedDateTime.now().toInstant().toEpochMilli();
 
-        Map<String, String[]> links = new HashMap<>();
-        Map<String, List<FileChange>> changes = new HashMap<>();
+        Map<String, String[]> commits = new HashMap<>();
+        Map<String, Map<String, FileChange>> changes = new HashMap<>();
 
         FileRepositoryBuilder builder = new FileRepositoryBuilder();
         try (Repository repository = builder.setGitDir(new File("d:/jira/projects/140-android/.git"))
@@ -55,7 +55,7 @@ public class Main {
             for (int i = depth; i > 0 ; i--) {
                 for (ObjectId id : childList) {
                     RevCommit childCommit = walk.parseCommit(id);
-                    String[] parents = links.put(id.toObjectId().getName(), Arrays.stream(childCommit.getParents())
+                    String[] parents = commits.put(id.toObjectId().getName(), Arrays.stream(childCommit.getParents())
                             .map(RevCommit::toObjectId)
                             .map(ObjectId::getName)
                             .toArray(String[]::new));
@@ -69,27 +69,31 @@ public class Main {
 
                             List<DiffEntry> entries = diffFormatter.scan(parentTree, childTree);
 
-                            List<FileChange> fileChanges = new ArrayList<>();
+                            Map<String, FileChange> fileChanges = new HashMap<>();
                             for( DiffEntry entry : entries ) {
                                 FileHeader fileHeader = diffFormatter.toFileHeader(entry);
                                 List<? extends HunkHeader> hunks = fileHeader.getHunks();
 
-                                Map<Edit.Type, Integer> changeMap = new EnumMap(Edit.Type.class);
+                                String path = DiffEntry.ChangeType.DELETE.equals(entry.getChangeType())
+                                        ? entry.getOldPath() : entry.getNewPath();
+
+                                FileChange fileChange = fileChanges.get(path);
+
+                                Map<Edit.Type, Integer> changeMap = null == fileChange
+                                        ? new EnumMap(Edit.Type.class) : fileChange.getChanges();
 
                                 hunks.stream()
-                                        .map(hunkHeader -> hunkHeader.toEditList())
-                                        .flatMap(edits -> edits.stream())
+                                        .map(HunkHeader::toEditList)
+                                        .flatMap(Collection::stream)
                                         .forEach(edit -> {
-
                                             int lineCount = Edit.Type.DELETE.equals(edit.getType()) ? edit.getLengthA() : edit.getLengthB();
                                             Integer number = changeMap.put(edit.getType(), lineCount);
                                             if (null != number) {
                                                 changeMap.put(edit.getType(), number + lineCount);
                                             }});
 
-                                fileChanges.add(new FileChange(entry.getChangeType(),
+                                fileChanges.put(path, new FileChange(entry.getChangeType(),
                                         entry.getOldPath(),
-                                        entry.getNewPath(),
                                         changeMap));
                             }
                             changes.put(id.toObjectId().getName(), fileChanges);
@@ -108,7 +112,69 @@ public class Main {
 
         }
 
+        System.out.println("Total commits : " + commits.size());
+
+        // create blame graph
+
+        Map<String, Map<String, DiffEntry.ChangeType>> blameLinks = new HashMap<>();
+        List<String> parents = new ArrayList<>();
+        List<String> childs = new ArrayList<>();
+        Set<String> visitedNodes = new HashSet<>();
+
+        for (Map.Entry<String, String[]> entry: commits.entrySet()) {
+
+            Map<String, FileChange> fileChangeMap = changes.get(entry.getKey());
+            if (null == fileChangeMap ) {
+                continue;
+            }
+
+            visitedNodes.clear();
+
+            HashMap<String, DiffEntry.ChangeType> blame = new HashMap<>();
+
+            for (Map.Entry<String, FileChange> fileChangeEntry : fileChangeMap.entrySet()) {
+
+                childs.clear();
+                childs.addAll(Arrays.asList(commits.get(entry.getKey())));
+
+                while (0 < childs.size()) {
+                    childs.stream()
+                            .forEach(child -> {
+                                if (visitedNodes.add(child)) {
+
+                                    Map<String, FileChange> changedFiles = changes.get(child);
+                                    FileChange fileChange = null == changedFiles ? null : changedFiles.get(fileChangeEntry.getKey());
+                                    String[] commitChilds = commits.get(child);
+
+                                    if (null != fileChange || null == commitChilds) {
+                                        DiffEntry.ChangeType changeType = blame.get(child);
+                                        if (null == changeType) {
+                                            blame.put(child, fileChangeEntry.getValue().getChangeType());
+                                        } else {
+                                            if (!DiffEntry.ChangeType.MODIFY.equals(changeType)
+                                                    && !changeType.equals(fileChangeEntry.getValue().getChangeType())) {
+                                                blame.put(child, DiffEntry.ChangeType.MODIFY);
+                                            }
+                                        }
+                                    } else {
+                                        parents.addAll(Arrays.asList(commits.get(child)));
+                                    }
+                                }});
+                    childs = new ArrayList<>(parents);
+                    parents.clear();
+
+                }
+
+            }
+            if (0 < blame.size()) {
+                blameLinks.put(entry.getKey(), blame);
+            }
+        }
+
+
+        System.out.println("Found blame commits : " + blameLinks.size());
         System.out.println("Total time : " + (ZonedDateTime.now().toInstant().toEpochMilli() - start));
-        System.out.println("Total links : " + links.size());
+
+
     }
 }

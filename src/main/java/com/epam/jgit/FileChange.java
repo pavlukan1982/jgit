@@ -11,13 +11,11 @@ import java.util.Map;
 public class FileChange {
     private DiffEntry.ChangeType changeType;
     private String oldPath;
-    private String newPath;
     private Map<Edit.Type, Integer> changes;
 
-    public FileChange(DiffEntry.ChangeType changeType, String oldPath, String newPath, Map<Edit.Type, Integer> changes) {
+    public FileChange(DiffEntry.ChangeType changeType, String oldPath, Map<Edit.Type, Integer> changes) {
         this.changeType = changeType;
         this.oldPath = oldPath;
-        this.newPath = newPath;
         this.changes = changes;
     }
 
@@ -27,10 +25,6 @@ public class FileChange {
 
     public String getOldPath() {
         return oldPath;
-    }
-
-    public String getNewPath() {
-        return newPath;
     }
 
     public Map<Edit.Type, Integer> getChanges() {
