@@ -24,8 +24,8 @@ import java.util.*;
  */
 public class Main {
 
-    public static String sha = "d01f041886906f2d214711d76d7f8f0dde5ecaeb";
-    public static int depth = 1000;
+    public static String sha = "657edcc157b52cfa3f37775839df05aeb33c1f71";
+    public static int depth = 20;
 
     public static void main(String[] args) throws IOException, GitAPIException{
 
@@ -116,7 +116,7 @@ public class Main {
 
         // create blame graph
 
-        Map<String, Map<String, DiffEntry.ChangeType>> blameLinks = new HashMap<>();
+        Map<String, Map<String, Edit.Type>> blameLinks = new HashMap<>();
         List<String> parents = new ArrayList<>();
         List<String> childs = new ArrayList<>();
         Set<String> visitedNodes = new HashSet<>();
@@ -128,12 +128,16 @@ public class Main {
                 continue;
             }
 
-            visitedNodes.clear();
 
-            HashMap<String, DiffEntry.ChangeType> blame = new HashMap<>();
+            HashMap<String, Edit.Type> blame = new HashMap<>();
 
             for (Map.Entry<String, FileChange> fileChangeEntry : fileChangeMap.entrySet()) {
 
+                if (DiffEntry.ChangeType.ADD.equals(fileChangeEntry.getValue().getChangeTypeFile())) {
+                    continue;
+                }
+
+                visitedNodes.clear();
                 childs.clear();
                 childs.addAll(Arrays.asList(commits.get(entry.getKey())));
 
@@ -143,21 +147,23 @@ public class Main {
                                 if (visitedNodes.add(child)) {
 
                                     Map<String, FileChange> changedFiles = changes.get(child);
-                                    FileChange fileChange = null == changedFiles ? null : changedFiles.get(fileChangeEntry.getKey());
+                                    FileChange fileChange = null == changedFiles
+                                            ? null : changedFiles.get(fileChangeEntry.getKey());
                                     String[] commitChilds = commits.get(child);
-
-                                    if (null != fileChange || null == commitChilds) {
-                                        DiffEntry.ChangeType changeType = blame.get(child);
-                                        if (null == changeType) {
-                                            blame.put(child, fileChangeEntry.getValue().getChangeType());
-                                        } else {
-                                            if (!DiffEntry.ChangeType.MODIFY.equals(changeType)
-                                                    && !changeType.equals(fileChangeEntry.getValue().getChangeType())) {
-                                                blame.put(child, DiffEntry.ChangeType.MODIFY);
+                                    if (null != commitChilds) {
+                                        if (null != fileChange || 0 == commitChilds.length) {
+                                            Edit.Type changeType = blame.get(child);
+                                            if (null == changeType) {
+                                                blame.put(child, fileChangeEntry.getValue().getChangeType());
+                                            } else {
+                                                if (!Edit.Type.REPLACE.equals(changeType)
+                                                        && !changeType.equals(fileChangeEntry.getValue().getChangeType())) {
+                                                    blame.put(child, Edit.Type.REPLACE);
+                                                }
                                             }
+                                        } else {
+                                            parents.addAll(Arrays.asList(commits.get(child)));
                                         }
-                                    } else {
-                                        parents.addAll(Arrays.asList(commits.get(child)));
                                     }
                                 }});
                     childs = new ArrayList<>(parents);
@@ -172,8 +178,8 @@ public class Main {
         }
 
 
-        System.out.println("Found blame commits : " + blameLinks.size());
         System.out.println("Total time : " + (ZonedDateTime.now().toInstant().toEpochMilli() - start));
+        System.out.println("Found blame commits : " + blameLinks.size());
 
 
     }

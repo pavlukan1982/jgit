@@ -9,18 +9,24 @@ import java.util.Map;
  * Created by Andrei_Pauliukevich1 on 4/29/2016.
  */
 public class FileChange {
-    private DiffEntry.ChangeType changeType;
+    private DiffEntry.ChangeType changeTypeFile;
     private String oldPath;
     private Map<Edit.Type, Integer> changes;
+    private Edit.Type changeType;
 
-    public FileChange(DiffEntry.ChangeType changeType, String oldPath, Map<Edit.Type, Integer> changes) {
-        this.changeType = changeType;
+    public FileChange(DiffEntry.ChangeType changeTypeFile, String oldPath, Map<Edit.Type, Integer> changes) {
+        this.changeTypeFile = changeTypeFile;
         this.oldPath = oldPath;
         this.changes = changes;
+        if (1 < this.changes.size()) {
+            this.changeType = Edit.Type.REPLACE;
+        } else if ( 1 == this.changes.size()) {
+            this.changeType = changes.entrySet().iterator().next().getKey();
+        }
     }
 
-    public DiffEntry.ChangeType getChangeType() {
-        return changeType;
+    public DiffEntry.ChangeType getChangeTypeFile() {
+        return changeTypeFile;
     }
 
     public String getOldPath() {
@@ -29,5 +35,9 @@ public class FileChange {
 
     public Map<Edit.Type, Integer> getChanges() {
         return changes;
+    }
+
+    public Edit.Type getChangeType() {
+        return changeType;
     }
 }
