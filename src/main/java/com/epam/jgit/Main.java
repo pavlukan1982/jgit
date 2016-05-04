@@ -24,8 +24,8 @@ import java.util.*;
  */
 public class Main {
 
-    public static String sha = "79f127f678702483174368cdb61c58485bec6a0a";
-    public static int depth = 1000;
+    public static String sha = "c80124127201abecf219e67e0ed721e1d66e8fcc";
+    public static int depth = 5;
 
     public static void main(String[] args) throws IOException, GitAPIException{
 
@@ -35,7 +35,7 @@ public class Main {
         Map<String, String[]> blameLinks = new HashMap<>();
 
         FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        try (Repository repository = builder.setGitDir(new File("d:/jira/projects/140-android/.git"))
+        try (Repository repository = builder.setGitDir(new File("d:/jira/projects/testrepo/.git"))
                 .readEnvironment() // scan environment GIT_* variables
                 .findGitDir() // scan up the file system tree
                 .build()) {
@@ -44,7 +44,7 @@ public class Main {
             ObjectId commit = repository.resolve(sha);
 
             DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
-            diffFormatter.setPathFilter(new ExtensionTreeFilter("java"));
+            diffFormatter.setPathFilter(new ExtensionTreeFilter("txt"));
             diffFormatter.setRepository(repository);
             diffFormatter.setContext(0);
 
@@ -107,7 +107,39 @@ public class Main {
             }
         }
 
+        Set<String> processed = new HashSet<>();
+        HashMap<String, Blame> blameMap = new HashMap<>();
 
+        changes.entrySet().stream()
+                .forEach(entry -> Arrays.stream(entry.getValue())
+                        .filter(commit -> {
+                            Commit[] commits = changes.get(commit.getId());
+                            if (null != commits && 0 == commits.length) {
+                                processed.add(commit.getId());
+                            }
+                            return (null == commits) || (0 == commits.length);})
+                        .forEach(commit -> blameMap.put(commit.getId(), new Blame(commit.getId()))));
+
+
+        while (processed.size() != changes.size()) {
+
+            changes.entrySet().stream()
+                    .filter(entry -> !processed.contains(entry.getKey()))
+                    .forEach(entry -> {
+                        Blame[] blames = Arrays.stream(entry.getValue())
+                                .map(commit -> blameMap.get(commit.getId()))
+                                .filter(blame -> null != blame)
+                                .toArray(Blame[]::new);
+                        if (entry.getValue().length == blames.length) {
+                            new Blame(blames, entry.getValue());
+
+
+
+                        }
+                    });
+            ;
+
+        }
 
         System.out.println("Total time : " + (ZonedDateTime.now().toInstant().toEpochMilli() - start));
         System.out.println("Total commits : " + changes.size());
