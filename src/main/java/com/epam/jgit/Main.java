@@ -4,12 +4,12 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.Edit;
+import org.eclipse.jgit.diff.RenameDetector;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.patch.FileHeader;
 import org.eclipse.jgit.patch.HunkHeader;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
@@ -25,13 +25,12 @@ import java.util.*;
 public class Main {
 
     public static String sha = "79f127f678702483174368cdb61c58485bec6a0a";
-    public static int depth = 100;
+    public static int depth = 1000;
 
     public static void main(String[] args) throws IOException, GitAPIException{
 
         long start = ZonedDateTime.now().toInstant().toEpochMilli();
 
-        Map<String, String[]> commits = new HashMap<>();
         Map<String, Commit[]> changes = new HashMap<>();
         Map<String, String[]> blameLinks = new HashMap<>();
 
@@ -49,6 +48,8 @@ public class Main {
             diffFormatter.setRepository(repository);
             diffFormatter.setContext(0);
 
+            RenameDetector renameDetector = new RenameDetector(repository);
+
             Set<ObjectId> childList = new HashSet<>();
             childList.add(commit);
             Set<ObjectId> parentList = new HashSet<>();
@@ -56,23 +57,21 @@ public class Main {
             for (int i = depth; i > 0 ; i--) {
                 for (ObjectId id : childList) {
                     RevCommit childCommit = walk.parseCommit(id);
-                    String[] parents = commits.put(id.toObjectId().getName(), Arrays.stream(childCommit.getParents())
-                            .map(RevCommit::toObjectId)
-                            .map(ObjectId::getName)
-                            .toArray(String[]::new));
 
-                    if (null == parents) {
-                        parentList.addAll(Arrays.asList(childCommit.getParents()));
+                    Commit[] commits = changes.get(id.toObjectId().getName());
 
-                        Commit[] commitArray = new Commit[childCommit.getParents().length];
-                        for (int j = 0; j < childCommit.getParents().length; j++) {
+                    if (null == commits) {
+                        RevCommit[] parents = childCommit.getParents();
+                        parentList.addAll(Arrays.asList(parents));
+
+                        Commit[] commitArray = new Commit[parents.length];
+                        for (int j = 0; j < parents.length; j++) {
+                            renameDetector.reset();
 
                             RevCommit parentCommit = walk.parseCommit(childCommit.getParent(j));
 
-                            RevTree childTree = walk.parseTree(childCommit.getTree());
-                            RevTree parentTree = walk.parseTree(parentCommit.getTree());
-
-                            List<DiffEntry> entries = diffFormatter.scan(parentTree, childTree);
+                            renameDetector.addAll(diffFormatter.scan(parentCommit.getTree(), childCommit.getTree()));
+                            List<DiffEntry> entries = renameDetector.compute();
 
                             Map<String, FileChange> fileChanges = new HashMap<>();
                             for( DiffEntry entry : entries ) {
@@ -88,7 +87,9 @@ public class Main {
                                         .toArray(Edit[]::new)));
                             }
 
-                            commitArray[j] = new Commit(childCommit.getParent(j).toObjectId().getName(), fileChanges);
+                            commitArray[j] = new Commit(childCommit.getParent(j).toObjectId().getName(),
+                                    depth - i + 1,
+                                    fileChanges);
 
                         }
 
@@ -106,8 +107,10 @@ public class Main {
             }
         }
 
+
+
         System.out.println("Total time : " + (ZonedDateTime.now().toInstant().toEpochMilli() - start));
-        System.out.println("Total commits : " + commits.size());
+        System.out.println("Total commits : " + changes.size());
 
 
     }
