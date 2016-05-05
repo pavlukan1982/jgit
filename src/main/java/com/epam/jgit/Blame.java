@@ -18,15 +18,14 @@ public class Blame {
 
     public Blame(Blame[] blames, Commit[] commits) {
         if (1 == blames.length) {
-            this.files = new HashMap<String, File>(blames[0].getFiles());
+            this.files = new HashMap<>(blames[0].getFiles());
             commits[0].getChanges().entrySet().stream().forEach(entry -> {
-                File file = this.files.get(entry.getKey());
-                if (null == file) {
-                    file = new File(this.id);
-                }
+                File findFile = this.files.get(entry.getKey());
+                final File file = null == findFile
+                        ? new File(this.id) : findFile;
                 Arrays.stream(entry.getValue().getChanges())
                         .forEach(edit -> {
-
+                            file.changeBlock(edit);
                         });
             });
 
