@@ -9,23 +9,29 @@ import java.util.Map;
  */
 public class Blame {
     private String id;
+    private String initCommit;
     private Map<String, File> files;
 
     public Blame(String id) {
-        this.id = id;
+        this.initCommit = id;
         this.files = new HashMap<>();
     }
 
-    public Blame(Blame[] blames, Commit[] commits) {
+    public Blame(Blame[] blames, Commit[] commits, String id) {
+        this.id = id;
+        this.initCommit = blames[0].getInitCommit();
         if (1 == blames.length) {
-            this.files = new HashMap<>(blames[0].getFiles());
+            this.files = mapDeepCopy(blames[0].getFiles());
             commits[0].getChanges().entrySet().stream().forEach(entry -> {
                 File findFile = this.files.get(entry.getKey());
-                final File file = null == findFile
-                        ? new File(this.id) : findFile;
+                File file = (null == findFile)
+                        ? new File(this.initCommit) : findFile;
+                if (null == findFile) {
+                    files.put(entry.getKey(), file);
+                }
                 Arrays.stream(entry.getValue().getChanges())
                         .forEach(edit -> {
-                            file.changeBlock(edit);
+                            file.changeBlock(edit, this.id);
                         });
             });
 
@@ -39,5 +45,16 @@ public class Blame {
 
     public Map<String, File> getFiles() {
         return files;
+    }
+
+    public String getInitCommit() {
+        return initCommit;
+    }
+
+    private Map<String, File> mapDeepCopy(Map<String, File> map) {
+        Map newMap = new HashMap<>(map.size());
+        map.entrySet().stream()
+                .forEach(entry -> newMap.put(entry.getKey(), new File(entry.getValue())));
+        return newMap;
     }
 }

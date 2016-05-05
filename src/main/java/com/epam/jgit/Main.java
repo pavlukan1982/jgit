@@ -24,8 +24,8 @@ import java.util.*;
  */
 public class Main {
 
-    public static String sha = "c80124127201abecf219e67e0ed721e1d66e8fcc";
-    public static int depth = 5;
+    public static String sha = "d3584f99bf394cf44256406aa129700f2120533d";
+    public static int depth = 10;
 
     public static void main(String[] args) throws IOException, GitAPIException{
 
@@ -120,6 +120,10 @@ public class Main {
                             return (null == commits) || (0 == commits.length);})
                         .forEach(commit -> blameMap.put(commit.getId(), new Blame(commit.getId()))));
 
+        String initCommit = changes.entrySet().stream()
+                .filter(entry -> 0 == entry.getValue().length)
+                .map(entry -> entry.getKey())
+                .toArray(String[]::new)[0];
 
         while (processed.size() != changes.size()) {
 
@@ -131,10 +135,8 @@ public class Main {
                                 .filter(blame -> null != blame)
                                 .toArray(Blame[]::new);
                         if (entry.getValue().length == blames.length) {
-                            new Blame(blames, entry.getValue());
-
-
-
+                            blameMap.put(entry.getKey(), new Blame(blames, entry.getValue(), entry.getKey()));
+                            processed.add(entry.getKey());
                         }
                     });
             ;

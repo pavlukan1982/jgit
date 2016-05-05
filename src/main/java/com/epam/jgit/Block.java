@@ -12,6 +12,11 @@ public class Block {
         this.id = id;
     }
 
+    public Block(Block block) {
+        this.size = block.getSize();
+        this.id = block.getId();
+    }
+
     public int getSize() {
         return size;
     }
