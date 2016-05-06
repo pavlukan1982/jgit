@@ -13,9 +13,12 @@ public class File {
     private String startCommit;
     private List<Block> listing;
 
-    public File(String startCommit) {
-        this.startCommit = startCommit;
+    public File(String commit, int size) {
+        this.startCommit = commit;
         this.listing = new LinkedList<>();
+        if (0 < size) {
+            this.listing.add(new Block(size, commit));
+        }
     }
 
     public File(File file) {
@@ -85,6 +88,13 @@ public class File {
                 break;
         }
         return affectedCommits.toArray(new String[]{});
+    }
+
+    public List<String> getBlameCommits() {
+        return listing.stream()
+                .map(Block::getId)
+                .distinct()
+                .collect(Collectors.toList());
     }
 
 }
