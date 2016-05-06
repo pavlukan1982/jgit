@@ -1,8 +1,10 @@
 package com.epam.jgit;
 
-import java.util.Arrays;
+import org.eclipse.jgit.diff.Edit;
+
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 /**
  * Created by Andrei_Pauliukevich1 on 5/4/2016.
@@ -20,8 +22,8 @@ public class Blame {
     public Blame(Blame[] blames, Commit[] commits, String id) {
         this.id = id;
         this.initCommit = blames[0].getInitCommit();
+        this.files = mapDeepCopy(blames[0].getFiles());
         if (1 == blames.length) {
-            this.files = mapDeepCopy(blames[0].getFiles());
             commits[0].getChanges().entrySet().stream().forEach(entry -> {
                 File findFile = this.files.get(entry.getKey());
                 File file = (null == findFile)
@@ -29,9 +31,10 @@ public class Blame {
                 if (null == findFile) {
                     files.put(entry.getKey(), file);
                 }
-                Arrays.stream(entry.getValue().getChanges())
-                        .forEach(edit -> {
-                            file.changeBlock(edit, this.id);
+                Edit[] edits = entry.getValue().getChanges();
+                IntStream.range(0, edits.length)
+                        .forEach(i -> {
+                            file.changeBlock(edits[edits.length - 1 - i], this.id);
                         });
             });
 

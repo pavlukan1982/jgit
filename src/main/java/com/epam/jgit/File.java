@@ -41,79 +41,47 @@ public class File {
         Set<String> affectedCommits = new HashSet<>();
         int pos = 0, number = 0, begin = -1, end = -1;
         for (Block block : this.listing) {
-            if (0 == edit.getLengthA()) {
-                if (edit.getBeginA() >= pos
-                        && edit.getBeginA() < pos + block.getSize()) {
-                    begin = number;
-                    pos =+ block.getSize();
-                    break;
+            pos += block.getSize();
+            if (edit.getBeginA() + 1 <= pos) {
+                int size = edit.getBeginA() - (pos - block.getSize());
+                if (0 < size) {
+                    blocks.add(new Block(edit.getBeginA() - (pos - block.getSize()), block.getId()));
                 }
-            } else {
-                if (edit.getBeginA() + 1 >= pos
-                        && edit.getBeginA() + 1 <= pos + block.getSize()) {
-                    if (edit.getBeginA() + 1 > pos) {
-                        blocks.add(new Block(edit.getBeginA() - pos, block.getId()));
-                    }
-                    begin = number;
-                }
-                if (0 <= begin) {
-                    affectedCommits.add(block.getId());
-                }
-                if (edit.getEndA() >= pos
-                        && edit.getEndA() <= pos + block.getSize()) {
-                    blocks.add(new Block(edit.getLengthB(), commit));
-                    if (edit.getEndA() < pos + block.getSize()) {
-                        blocks.add(new Block(pos + block.getSize() - edit.getEndA(), block.getId()));
-                    }
-                    end = number;
-                    pos =+ block.getSize();
-                    break;
-                }
+                begin = number;
             }
-            pos =+ block.getSize();
+            if (0 <= begin) {
+                affectedCommits.add(block.getId());
+            }
+            if (edit.getEndA() <= pos) {
+                blocks.add(new Block(edit.getLengthB(), commit));
+                int size = pos - edit.getEndA();
+                if (0 < size) {
+                    blocks.add(new Block(pos - edit.getEndA(), block.getId()));
+                }
+                end = number;
+                break;
+            }
             number++;
         }
 
-        if (0 == edit.getLengthA()) {
-            if (0 > begin) {
-                int size = edit.getBeginA() - pos;
-                if (0 != size) {
-                    blocks.add(new Block(size, this.startCommit));
-                }
-                blocks.add(new Block(edit.getLengthB(), commit));
-            } else {
-                Block block = listing.get(begin);
-                int sizeFirst = edit.getBeginA() - (pos - block.getSize());
-                blocks.add(new Block(sizeFirst, block.getId()));
-                blocks.add(new Block(edit.getLengthB(), commit));
-                blocks.add(new Block(block.getSize() - sizeFirst, block.getId()));
+        if (edit.getEndA() > pos) {
+            if (0 == edit.getLengthA()) {
+                blocks.add(new Block(edit.getBeginA() + 1 - pos, startCommit));
             }
-        } else {
-            if (edit.getEndA() > pos) {
-                blocks.add(new Block(edit.getLengthB(), commit));
-                end = listing.size() - 1;
-            }
+            blocks.add(new Block(edit.getLengthB(), commit));
+            end = listing.size() - 1;
         }
-        final int beginIndex = begin;
+        final int beginIndex = (0 > begin) ? listing.size() : begin;
+
+        IntStream.rangeClosed(beginIndex, end)
+                .forEach(i -> listing.remove(beginIndex));
 
         switch (edit.getType()) {
             case DELETE:
-                IntStream.rangeClosed(beginIndex, end)
-                        .forEach(i -> listing.remove(beginIndex));
                 break;
             case REPLACE:
-                IntStream.rangeClosed(beginIndex, end)
-                        .forEach(i -> listing.remove(beginIndex));
-                listing.addAll(beginIndex, blocks);
-                break;
             case INSERT:
-                if (0 <= begin) {
-                    listing.remove(begin);
-                }
-                if (0 > begin) {
-                    begin = listing.size();
-                }
-                listing.addAll(begin, blocks);
+                listing.addAll(beginIndex, blocks);
                 break;
         }
         return affectedCommits.toArray(new String[]{});
