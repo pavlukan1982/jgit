@@ -9,10 +9,12 @@ import org.eclipse.jgit.diff.Edit;
 public class FileChange {
     private DiffEntry.ChangeType changeTypeFile;
     private Edit[] changes;
+    private String oldPath;
 
-    public FileChange(DiffEntry.ChangeType changeTypeFile, Edit[] changes) {
+    public FileChange(DiffEntry.ChangeType changeTypeFile, Edit[] changes, String oldPath) {
         this.changeTypeFile = changeTypeFile;
         this.changes = changes;
+        this.oldPath = oldPath;
     }
 
     public DiffEntry.ChangeType getChangeTypeFile() {
@@ -21,5 +23,9 @@ public class FileChange {
 
     public Edit[] getChanges() {
         return changes;
+    }
+
+    public String getOldPath() {
+        return oldPath;
     }
 }

@@ -29,7 +29,7 @@ import java.util.*;
 public class Main {
 
     public static String sha = "79f127f678702483174368cdb61c58485bec6a0a";
-    public static int depth = 1000;
+    public static int depth = 50;
 
     public static void main(String[] args) throws IOException, GitAPIException{
 
@@ -48,7 +48,8 @@ public class Main {
             ObjectId startCommit = repository.resolve(sha);
 
             DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
-            diffFormatter.setPathFilter(new ExtensionTreeFilter("java"));
+            ExtensionTreeFilter filter = new ExtensionTreeFilter("java");
+            diffFormatter.setPathFilter(filter);
             diffFormatter.setRepository(repository);
             diffFormatter.setContext(0);
 
@@ -85,10 +86,14 @@ public class Main {
                                 String path = DiffEntry.ChangeType.DELETE.equals(entry.getChangeType())
                                         ? entry.getOldPath() : entry.getNewPath();
 
-                                fileChanges.put(path, new FileChange(entry.getChangeType(), hunks.stream()
-                                        .map(HunkHeader::toEditList)
-                                        .flatMap(Collection::stream)
-                                        .toArray(Edit[]::new)));
+                                fileChanges.put(path, new FileChange(
+                                        entry.getChangeType(),
+                                        hunks.stream()
+                                                .map(HunkHeader::toEditList)
+                                                .flatMap(Collection::stream)
+                                                .toArray(Edit[]::new),
+                                        entry.getOldPath())
+                                );
                             }
 
                             commitArray[j] = new Commit(childCommit.getParent(j).toObjectId().getName(),
@@ -129,7 +134,7 @@ public class Main {
             String initCommit = beginCommit;
 
             TreeWalk treeWalk = new TreeWalk(repository);
-            treeWalk.setFilter(new ExtensionTreeFilter("java"));
+            treeWalk.setFilter(filter.clone());
             treeWalk.setRecursive(true);
 
             changes.entrySet().stream()

@@ -90,11 +90,11 @@ public class File {
         return affectedCommits.toArray(new String[]{});
     }
 
-    public List<String> getBlameCommits() {
+    public String[] getBlameCommits() {
         return listing.stream()
                 .map(Block::getId)
                 .distinct()
-                .collect(Collectors.toList());
+                .toArray(String[]::new);
     }
 
 }
