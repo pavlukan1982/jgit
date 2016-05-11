@@ -22,8 +22,15 @@ public class Blame {
         this.parents = null;
     }
 
-    public Blame(String id, Blame[] blames, Commit[] commits, Map<String, Blame> blameMap) {
+    public Blame(String id, Map<String, Commit[]> changes, Map<String, Blame> blameMap) {
         this.id = id;
+
+        Blame[] blames = Arrays.stream(changes.get(id))
+                .map(commit -> blameMap.get(commit.getId()))
+                .toArray(Blame[]::new);
+
+        Commit[] commits = changes.get(id);
+
         this.initCommit = blames[0].getInitCommit();
         this.parents = Arrays.stream(commits)
                 .map(commit -> commit.getId())
@@ -32,6 +39,8 @@ public class Blame {
         this.files = new HashMap<>();
 
         this.blameLinks = new HashMap<>();
+
+
         IntStream.range(0, blames.length)
                 .forEach(num ->
                         commits[num].getChanges().entrySet().stream().forEach(entry -> {
@@ -48,7 +57,7 @@ public class Blame {
 
                             File findFile = null;
                             if (!DiffEntry.ChangeType.ADD.equals((entry.getValue().getChangeTypeFile()))) {
-                                findFile = findFile(this.id, blameMap);
+                                findFile = findFile(filePath, blameMap);
                             }
                             if (null == findFile) {
                                 findFile = new File(this.id, size);
@@ -57,6 +66,7 @@ public class Blame {
                                 findFile = new File(findFile);
                             }
                             File file = findFile;
+                            files.put(filePath, findFile);
 
                             switch (entry.getValue().getChangeTypeFile()) {
                                 case RENAME:

@@ -22,6 +22,7 @@ import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Created by Andrei_Pauliukevich1 on 4/26/2016.
@@ -55,22 +56,22 @@ public class Main {
 
             RenameDetector renameDetector = new RenameDetector(repository);
 
-            Set<ObjectId> childList = new HashSet<>();
-            childList.add(startCommit);
-            Set<ObjectId> parentList = new HashSet<>();
+            Set<ObjectId> childs = new HashSet<>();
+            childs.add(startCommit);
 
             for (int i = depth; i > 0 ; i--) {
-                for (ObjectId id : childList) {
+                Set<ObjectId> parents = new HashSet<>();
+                for (ObjectId id : childs) {
                     RevCommit childCommit = walk.parseCommit(id);
 
                     Commit[] commits = changes.get(id.toObjectId().getName());
 
                     if (null == commits) {
-                        RevCommit[] parents = childCommit.getParents();
-                        parentList.addAll(Arrays.asList(parents));
+                        RevCommit[] parentCommits = childCommit.getParents();
+                        parents.addAll(Arrays.asList(parentCommits));
 
-                        Commit[] commitArray = new Commit[parents.length];
-                        for (int j = 0; j < parents.length; j++) {
+                        Commit[] commitArray = new Commit[parentCommits.length];
+                        for (int j = 0; j < parentCommits.length; j++) {
                             renameDetector.reset();
 
                             RevCommit parentCommit = walk.parseCommit(childCommit.getParent(j));
@@ -95,27 +96,65 @@ public class Main {
                                         entry.getOldPath())
                                 );
                             }
-
                             commitArray[j] = new Commit(childCommit.getParent(j).toObjectId().getName(),
                                     depth - i + 1,
                                     fileChanges);
-
                         }
-
                         changes.put(id.toObjectId().getName(), commitArray);
                     }
                 }
 
-                childList = new HashSet<>(parentList);
-                parentList.clear();
-
-                if (0 == childList.size()) {
+                childs = parents;
+                if (0 == childs.size()) {
                     System.out.println("Depth : " + (depth - i));
                     break;
                 }
             }
 
-            Set<String> processed = new HashSet<>();
+
+            Map<String, Set<String>> tree = new HashMap<>();
+            changes.entrySet().stream().forEach(entry -> Arrays.stream(entry.getValue())
+                    .forEach(commit -> {
+                        Set<String> set = tree.get(commit.getId());
+                        if (null == set) {
+                            set = new HashSet<>();
+                            tree.put(commit.getId(), set);
+                        }
+                        set.add(entry.getKey());}));
+
+
+            Map<String, Integer> childCount = new HashMap<>();
+            Map<String, Integer> levelMap = new HashMap<>();
+            Set<String> childSet = new HashSet<>();
+
+            childSet.add(sha);
+            int level = 0;
+            while (0 < childSet.size()) {
+                level++;
+                Set<String> parentSet = new HashSet<>();
+                for (String child : childSet) {
+
+
+                    Commit[] parents = changes.get(child);
+                    if (null != parents) {
+                        Arrays.stream(parents)
+                                .map(commit -> commit.getId())
+                                .forEach(id -> {
+                                    Integer num = childCount.get(id);
+                                    num = ((null == num) ? 0 : num) + 1;
+                                    childCount.put(id, num);
+
+                                    if (tree.get(id).size() == num) {
+                                        parentSet.add(id);
+                                    }});
+                        levelMap.put(child, level);
+                    }
+
+
+                }
+                childSet = parentSet;
+            }
+
             HashMap<String, Blame> blameMap = new HashMap<>();
 
 
@@ -141,9 +180,6 @@ public class Main {
                     .forEach(entry -> Arrays.stream(entry.getValue())
                             .filter(commit -> {
                                 Commit[] commits = changes.get(commit.getId());
-                                if (null != commits && 0 == commits.length) {
-                                    processed.add(commit.getId());
-                                }
                                 return (null == commits) || (0 == commits.length);})
                             .forEach(commit -> {
 
@@ -167,23 +203,18 @@ public class Main {
                             }));
 
 
-            while (processed.size() != changes.size()) {
+            List<String> sortedList = changes.entrySet().stream()
+                    .map(entry -> entry.getKey())
+                    .sorted((o1, o2) -> {
+                        Integer i1 = levelMap.get(o1);
+                        Integer i2 = levelMap.get(o2);
+                        return (i1 < i2) ? 1 : (i1 > i2) ? -1 : 0;
+                    })
+                    .collect(Collectors.toList());
 
-                changes.entrySet().stream()
-                        .filter(entry -> !processed.contains(entry.getKey()))
-                        .forEach(entry -> {
-                            Blame[] blames = Arrays.stream(entry.getValue())
-                                    .map(commit -> blameMap.get(commit.getId()))
-                                    .filter(blame -> null != blame)
-                                    .toArray(Blame[]::new);
-                            if (entry.getValue().length == blames.length) {
-                                blameMap.put(entry.getKey(), new Blame(entry.getKey(), blames, entry.getValue(), blameMap));
-                                processed.add(entry.getKey());
-                            }
-                        });
-                ;
-
-            }
+            sortedList.stream().forEach(s -> {
+                blameMap.put(s, new Blame(s, changes, blameMap));
+            });
 
             System.out.println("Total time : " + (ZonedDateTime.now().toInstant().toEpochMilli() - start));
             System.out.println("Total commits : " + changes.size());
