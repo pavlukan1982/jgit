@@ -14,16 +14,22 @@ public class Blame {
     private String initCommit;
     private Map<String, File> files;
     private Map<String, Set<String>> blameLinks;
+    private String[] parents;
 
     public Blame(String id, HashMap<String, File> files) {
         this.initCommit = id;
         this.files = files;
+        this.parents = null;
     }
 
-    public Blame(Blame[] blames, Commit[] commits, String id) {
+    public Blame(String id, Blame[] blames, Commit[] commits, Map<String, Blame> blameMap) {
         this.id = id;
         this.initCommit = blames[0].getInitCommit();
-        this.files = mapDeepCopy(blames[0].getFiles());
+        this.parents = Arrays.stream(commits)
+                .map(commit -> commit.getId())
+                .toArray(String[]::new);
+
+        this.files = new HashMap<>();
 
         this.blameLinks = new HashMap<>();
         IntStream.range(0, blames.length)
@@ -39,12 +45,19 @@ public class Blame {
 
                             String filePath = DiffEntry.ChangeType.RENAME.equals(entry.getValue().getChangeTypeFile()) ?
                                     entry.getValue().getOldPath() : entry.getKey();
-                            File findFile = files.get(filePath);
+
+                            File findFile = null;
+                            if (!DiffEntry.ChangeType.ADD.equals((entry.getValue().getChangeTypeFile()))) {
+                                findFile = findFile(this.id, blameMap);
+                            }
                             if (null == findFile) {
                                 findFile = new File(this.id, size);
                                 files.put(filePath, findFile);
+                            } else {
+                                findFile = new File(findFile);
                             }
                             File file = findFile;
+
                             switch (entry.getValue().getChangeTypeFile()) {
                                 case RENAME:
                                     files.put(entry.getKey(), files.remove(entry.getValue().getOldPath()));
@@ -97,15 +110,33 @@ public class Blame {
         return initCommit;
     }
 
-    private Map<String, File> mapDeepCopy(Map<String, File> map) {
-        Map newMap = new HashMap<>(map.size());
-        map.entrySet().stream()
-                .forEach(entry ->
-                        newMap.put(entry.getKey(), new File(entry.getValue())));
-        return newMap;
-    }
-
     public Map<String, Set<String>> getBlameLinks() {
         return blameLinks;
+    }
+
+    private File findFile(String path, Map<String, Blame> blameMap) {
+        File file = this.files.get(path);
+        List<String> childs = Arrays.asList(this.parents);
+        Set<String> processed = new HashSet<>();
+        while (0 < childs.size() && null == file) {
+            List<String> parents = new ArrayList<>();
+            for (String child : childs) {
+                Blame blame = blameMap.get(child);
+                file = blame.getFiles().get(path);
+                if (null == file) {
+                    if (null != blame.getParents() && processed.add(child)) {
+                        parents.addAll(Arrays.asList(blame.getParents()));
+                    }
+                } else {
+                    break;
+                }
+            }
+            childs = parents;
+        }
+        return  file;
+    }
+
+    public String[] getParents() {
+        return parents;
     }
 }

@@ -177,7 +177,7 @@ public class Main {
                                     .filter(blame -> null != blame)
                                     .toArray(Blame[]::new);
                             if (entry.getValue().length == blames.length) {
-                                blameMap.put(entry.getKey(), new Blame(blames, entry.getValue(), entry.getKey()));
+                                blameMap.put(entry.getKey(), new Blame(entry.getKey(), blames, entry.getValue(), blameMap));
                                 processed.add(entry.getKey());
                             }
                         });
