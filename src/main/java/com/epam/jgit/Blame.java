@@ -37,10 +37,14 @@ public class Blame {
                                         .sum();
                             }
 
-                            // TODO: 5/6/2016 test for speed and replase with simple methods
-                            File file = files.getOrDefault(entry.getKey(), new File(this.id, size));
-                            files.putIfAbsent(entry.getKey(), file);
-
+                            String filePath = DiffEntry.ChangeType.RENAME.equals(entry.getValue().getChangeTypeFile()) ?
+                                    entry.getValue().getOldPath() : entry.getKey();
+                            File findFile = files.get(filePath);
+                            if (null == findFile) {
+                                findFile = new File(this.id, size);
+                                files.put(filePath, findFile);
+                            }
+                            File file = findFile;
                             switch (entry.getValue().getChangeTypeFile()) {
                                 case RENAME:
                                     files.put(entry.getKey(), files.remove(entry.getValue().getOldPath()));
@@ -50,9 +54,12 @@ public class Blame {
                                             .forEach(i -> {
                                                 Arrays.stream(file.changeBlock(edits[edits.length - 1 - i], this.id))
                                                         .forEach(s -> {
-                                                            Set<String> set = this.blameLinks.getOrDefault(s, new HashSet<>());
-                                                            set.add(entry.getKey());
-                                                            this.blameLinks.putIfAbsent(s, new HashSet<>());
+                                                            Set<String> paths = this.blameLinks.get(s);
+                                                            if (null == paths) {
+                                                                paths = new HashSet<>();
+                                                                this.blameLinks.put(s, paths);
+                                                            }
+                                                            paths.add(entry.getKey());
                                                         });
                                             });
                                     break;
@@ -62,9 +69,12 @@ public class Blame {
                                 case DELETE:
                                     Arrays.stream(file.getBlameCommits())
                                             .forEach(s -> {
-                                                Set<String> set = this.blameLinks.getOrDefault(s, new HashSet<>());
-                                                set.add(entry.getKey());
-                                                this.blameLinks.putIfAbsent(s, new HashSet<>());
+                                                Set<String> paths = this.blameLinks.get(s);
+                                                if (null == paths) {
+                                                    paths = new HashSet<>();
+                                                    this.blameLinks.put(s, paths);
+                                                }
+                                                paths.add(entry.getKey());
                                             });
                                     files.remove(entry.getKey());
                                     break;
@@ -90,7 +100,8 @@ public class Blame {
     private Map<String, File> mapDeepCopy(Map<String, File> map) {
         Map newMap = new HashMap<>(map.size());
         map.entrySet().stream()
-                .forEach(entry -> newMap.put(entry.getKey(), new File(entry.getValue())));
+                .forEach(entry ->
+                        newMap.put(entry.getKey(), new File(entry.getValue())));
         return newMap;
     }
 

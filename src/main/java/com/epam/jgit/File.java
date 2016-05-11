@@ -52,7 +52,8 @@ public class File {
                 }
                 begin = number;
             }
-            if (0 <= begin) {
+            if ((0 <= begin) &&
+                    (0 < edit.getLengthA())) {
                 affectedCommits.add(block.getId());
             }
             if (edit.getEndA() <= pos) {
