@@ -11,15 +11,16 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.patch.FileHeader;
 import org.eclipse.jgit.patch.HunkHeader;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,6 +32,11 @@ public class Main {
 
     public static String sha = "79f127f678702483174368cdb61c58485bec6a0a";
     public static int depth = 50;
+    public static final String GIT_PATH = "d:/jira/projects/140-android/.git";
+    public static final String EXTENSIONS_FILTER = "java";
+    public static final String DB_CONNECTION = "jdbc:mysql://localhost:3306/jgit";
+    public static final String DB_USER = "root";
+    public static final String DB_PASSWORD = "root";
 
     public static void main(String[] args) throws IOException, GitAPIException{
 
@@ -40,7 +46,7 @@ public class Main {
         Map<String, String[]> blameLinks = new HashMap<>();
 
         FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        try (Repository repository = builder.setGitDir(new File("d:/jira/projects/140-android/.git"))
+        try (Repository repository = builder.setGitDir(new File(GIT_PATH))
                 .readEnvironment() // scan environment GIT_* variables
                 .findGitDir() // scan up the file system tree
                 .build()) {
@@ -49,7 +55,7 @@ public class Main {
             ObjectId startCommit = repository.resolve(sha);
 
             DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
-            ExtensionTreeFilter filter = new ExtensionTreeFilter("java");
+            ExtensionTreeFilter filter = new ExtensionTreeFilter(EXTENSIONS_FILTER);
             diffFormatter.setPathFilter(filter);
             diffFormatter.setRepository(repository);
             diffFormatter.setContext(0);
@@ -221,6 +227,12 @@ public class Main {
 
         }
 
+
+        try {
+            Connection conn = DriverManager.getConnection(DB_CONNECTION, DB_USER, DB_PASSWORD);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
 
 
     }
